@@ -1,0 +1,24 @@
+###############################################################################
+# Bazel now uses Bzlmod by default to manage external dependencies.
+# Please consider migrating your external dependencies from WORKSPACE to MODULE.bazel.
+#
+# For more details, please check https://github.com/bazelbuild/bazel/issues/18958
+###############################################################################
+
+bazel_dep(name = "rules_cc", version = "0.0.9")
+
+git_repository = use_repo_rule("@bazel_tools//tools/build_defs/repo:git.bzl", "git_repository")
+
+git_repository(
+    name = "cli11",
+    remote = "https://github.com/CLIUtils/CLI11.git",
+    tag = "v2.6.1",
+    build_file_content = """
+cc_library(
+    name = "cli11",
+    hdrs = glob(["include/CLI/**/*.hpp"]),
+    includes = ["include"],
+    visibility = ["//visibility:public"],
+)
+"""
+)

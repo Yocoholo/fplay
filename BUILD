@@ -1,0 +1,26 @@
+cc_binary(
+    name = "fplay",
+    srcs = ["fplay.cpp", "fplay.h"],
+    copts = [
+        "-std=c++17",
+        "-D_GNU_SOURCE=1",
+        "-D_REENTRANT",
+        "-I/usr/include/ffmpeg",
+        "-I/usr/include/SDL2", 
+        "-DMAJOR_VERSION=1",
+        "-DMINOR_VERSION=0",
+        "-DPATCH_VERSION=0",
+    ],
+    linkopts = [
+        "-lavformat",
+        "-lavcodec",
+        "-lswscale",
+        "-lswresample",
+        "-lavutil",
+        "-lSDL2",
+        "-lpthread",
+        "-lm",
+    ],
+    deps = ["@cli11//:cli11"],
+    visibility = ["//visibility:public"],
+)
