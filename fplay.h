@@ -16,6 +16,7 @@ extern "C" {
 #include <libswresample/swresample.h>
 #include <libavutil/imgutils.h>
 #include <libavutil/opt.h>
+#include <libavutil/channel_layout.h>
 }
 
 // SDL2 headers
