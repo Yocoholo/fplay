@@ -137,25 +137,82 @@ bool fplay::init_audio_decoder(AVFormatContext* fmt, int audio_idx, AudioContext
     int ret = avcodec_open2(actx.dec_ctx, acodec, nullptr);
     if (ret < 0) ff_panic("avcodec_open2(audio)", ret);
 
-    // Legacy channel layout API for FFmpeg < 5
-    int64_t out_ch_layout = av_get_default_channel_layout(actx.state.dst_channels);
+#if LIBAVUTIL_VERSION_MAJOR >= 57  // FFmpeg ≥ 5.0
+
+    /* ---------- channel layouts ---------- */
+
+    AVChannelLayout in_ch_layout;
+
+    if (actx.dec_ctx->ch_layout.nb_channels > 0) {
+        av_channel_layout_copy(&in_ch_layout, &actx.dec_ctx->ch_layout);
+    } else {
+        int ch = actx.dec_ctx->ch_layout.nb_channels;
+        if (ch <= 0) ch = 2;
+        av_channel_layout_default(&in_ch_layout, ch);
+    }
+
+    AVChannelLayout out_ch_layout;
+    av_channel_layout_default(&out_ch_layout, actx.state.dst_channels);
+
+    /* ---------- swresample ---------- */
+
+    actx.swr_ctx = nullptr;
+    ret = swr_alloc_set_opts2(
+        &actx.swr_ctx,
+        &out_ch_layout,
+        actx.state.dst_fmt,
+        actx.state.dst_rate,
+        &in_ch_layout,
+        actx.dec_ctx->sample_fmt,
+        actx.dec_ctx->sample_rate,
+        0,
+        nullptr
+    );
+
+    if (ret < 0 || !actx.swr_ctx)
+        ff_panic("swr_alloc_set_opts2", ret);
+
+#else  // FFmpeg 4.x and earlier
+
     int in_channels = actx.dec_ctx->channels;
     uint64_t in_channel_layout = actx.dec_ctx->channel_layout;
+
     if (in_channel_layout == 0) {
         if (in_channels == 0) in_channels = 2;
         in_channel_layout = av_get_default_channel_layout(in_channels);
     }
 
-    actx.swr_ctx = swr_alloc_set_opts(nullptr,
-                                      out_ch_layout, actx.state.dst_fmt, actx.state.dst_rate,
-                                      static_cast<int64_t>(in_channel_layout), actx.dec_ctx->sample_fmt, actx.dec_ctx->sample_rate,
-                                      0, nullptr);
-    if (!actx.swr_ctx) ff_panic("swr_alloc_set_opts", AVERROR(ENOMEM));
+    uint64_t out_ch_layout =
+        av_get_default_channel_layout(actx.state.dst_channels);
+
+    actx.swr_ctx = swr_alloc_set_opts(
+        nullptr,
+        out_ch_layout,
+        actx.state.dst_fmt,
+        actx.state.dst_rate,
+        in_channel_layout,
+        actx.dec_ctx->sample_fmt,
+        actx.dec_ctx->sample_rate,
+        0,
+        nullptr
+    );
+
+    if (!actx.swr_ctx)
+        ff_panic("swr_alloc_set_opts", AVERROR(ENOMEM));
+
+#endif
 
     ret = swr_init(actx.swr_ctx);
-    if (ret < 0) ff_panic("swr_init", ret);
+    if (ret < 0)
+        ff_panic("swr_init", ret);
 
     actx.state.swr = actx.swr_ctx;
+
+#if LIBAVUTIL_VERSION_MAJOR >= 57
+    av_channel_layout_uninit(&in_ch_layout);
+    av_channel_layout_uninit(&out_ch_layout);
+#endif
+
     return true;
 }
 
